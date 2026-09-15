@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Reproductor TV</title>
+<meta name="description" content="Grilla de canales de TV con reproducción y renovación automática de sesión.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📡</text></svg>">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#12141C">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ============ HEADER ============ -->
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div class="brand-copy">
+        <span class="brand-kicker">Reproductor</span>
+        <h1>TV</h1>
+      </div>
+    </div>
+    <div class="header-status">
+      <span id="clock" class="clock"></span>
+      <span id="statusPill" class="status-pill">Iniciando…</span>
+    </div>
+  </header>
+
+  <!-- ============ AVISO DE RENOVACIÓN ============ -->
+  <div id="renewBanner" class="renew-banner" hidden role="alert">
+    <p><strong>La sesión está por vencer.</strong> Tocá el botón para continuar viendo sin cortes.</p>
+    <button id="renewBtn" class="btn-primary">Renovar sesión</button>
+  </div>
+
+  <main>
+
+    <!-- ============ PANTALLA DE CARGA INICIAL ============ -->
+    <section id="gateScreen" class="screen gate-screen">
+      <div class="gate-card">
+        <span class="brand-mark brand-mark-lg" aria-hidden="true"></span>
+        <h2>Conectando...</h2>
+        <p class="gate-copy">Iniciando sesión automáticamente...</p>
+        <p id="gateError" class="gate-error" hidden></p>
+      </div>
+    </section>
+
+    <!-- ============ PANTALLA: CATEGORÍAS ============ -->
+    <section id="categoryScreen" class="screen category-screen" hidden>
+      <div class="category-grid">
+        <button class="category-card" type="button" data-category="canales">
+          <span class="category-icon" aria-hidden="true">📺</span>
+          <span class="category-name">Canales</span>
+        </button>
+        <button class="category-card" type="button" data-category="radios">
+          <span class="category-icon" aria-hidden="true">📻</span>
+          <span class="category-name">Radios</span>
+        </button>
+        <button class="category-card" type="button" data-category="camaras">
+          <span class="category-icon" aria-hidden="true">📷</span>
+          <span class="category-name">Cámaras</span>
+        </button>
+        <button class="category-card" type="button" data-category="peliculas">
+          <span class="category-icon" aria-hidden="true">🎬</span>
+          <span class="category-name">Películas</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ============ PANTALLA: GRILLA ============ -->
+    <section id="gridScreen" class="screen grid-screen" hidden>
+      <div class="grid-toolbar">
+        <button id="backToCategoriesBtn" class="btn-ghost" type="button">← Categorías</button>
+        <h2 id="gridTitle" class="grid-title"></h2>
+        <div class="toolbar-actions">
+          <label class="search-box" aria-label="Buscar canal">
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <input id="channelSearch" type="search" placeholder="Buscar canal" autocomplete="off">
+          </label>
+          <div class="view-switch" aria-label="Vista de canales">
+            <button id="allChannelsBtn" class="view-tab is-active" type="button">Todos</button>
+            <button id="favoritesBtn" class="view-tab" type="button">Favoritos</button>
+          </div>
+          <button id="orderModeBtn" class="btn-ghost" type="button">Organizar orden</button>
+        </div>
+        <p id="orderModeHint" class="order-hint" hidden>Arrastrá una tarjeta para moverla o usá las flechas del control remoto.</p>
+      </div>
+      <div id="channelGrid" class="channel-grid" role="list"></div>
+      <p id="gridEmpty" class="grid-empty" hidden>No se pudo cargar el contenido. <button id="retryGridBtn" class="btn-link">Reintentar</button></p>
+    </section>
+
+    <!-- ============ PANTALLA: REPRODUCTOR ============ -->
+    <section id="playerScreen" class="screen player-screen" hidden>
+      <div class="player-top">
+        <button id="backBtn" class="btn-back">← Volver a la grilla</button>
+        <span id="playerChannelName" class="player-channel-name"></span>
+        <span class="player-live"><i class="dot" aria-hidden="true"></i>EN VIVO</span>
+      </div>
+      <div class="video-wrapper">
+        <video id="videoPlayer" controls autoplay playsinline></video>
+        <div id="loadingOverlay" class="loading-overlay">
+          <div class="spinner" aria-hidden="true"></div>
+          <p id="loadingText">Sintonizando…</p>
+        </div>
+        <div id="playerErrorOverlay" class="player-error-overlay" hidden>
+          <p id="playerErrorText">No se pudo reproducir este canal.</p>
+          <button id="playerRetryBtn" class="btn-primary">Reintentar</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
