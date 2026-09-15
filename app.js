@@ -274,9 +274,13 @@ function renderGrid() {
 
 /* ================== REPRODUCTOR ================== */
 
-async function playChannel(ch) {
+async function playChannel(ch, updateRoute = true) {
   state.currentChannel = ch;
   state.streamRetryCount = 0;
+  if (updateRoute && window.location.hash !== `#/player/${encodeURIComponent(state.currentCategory)}/${encodeURIComponent(ch.publicId)}`) {
+    window.location.hash = `#/player/${encodeURIComponent(state.currentCategory)}/${encodeURIComponent(ch.publicId)}`;
+    return;
+  }
   showScreen('player');
   els.playerChannelName.textContent = ch.nombre;
   showPlayerLoading('Sintonizando…');
@@ -468,6 +472,57 @@ function showScreen(name) {
   window.scrollTo(0, 0);
 }
 
+function getRoute() {
+  const parts = window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
+  if (parts[0] === 'player' && parts[1] && parts[2]) {
+    return { name: 'player', category: parts[1], publicId: parts[2] };
+  }
+  if (parts[0] === 'grid' && parts[1]) return { name: 'grid', category: parts[1] };
+  return { name: 'categories' };
+}
+
+async function renderRoute() {
+  const route = getRoute();
+
+  if (route.name === 'categories') {
+    stopPlayback();
+    showScreen('categories');
+    return;
+  }
+
+  if (!CONFIG.LISTAS[route.category]) {
+    window.location.hash = '';
+    return;
+  }
+
+  if (state.currentCategory !== route.category || !state.channels.length) {
+    state.currentCategory = route.category;
+    showScreen('grid');
+    els.gridEmpty.hidden = true;
+    els.channelGrid.innerHTML = '';
+    try {
+      await loadGrid(route.category);
+    } catch (err) {
+      console.error('Error al cargar ' + route.category + ':', err);
+      els.gridEmpty.hidden = false;
+      return;
+    }
+  }
+
+  if (route.name === 'grid') {
+    stopPlayback();
+    showScreen('grid');
+    return;
+  }
+
+  const channel = state.channels.find(ch => String(ch.publicId) === String(route.publicId));
+  if (!channel) {
+    window.location.hash = `#/grid/${encodeURIComponent(route.category)}`;
+    return;
+  }
+  await playChannel(channel, false);
+}
+
 /* ================== ARRANQUE ================== */
 
 async function bootstrapSession() {
@@ -475,8 +530,7 @@ async function bootstrapSession() {
   try {
     await loginAndCreateSession();
     setStatus('En vivo', 'live');
-    // Ir directo a la pantalla de categorías
-    showScreen('categories');
+    await renderRoute();
   } catch (err) {
     console.error('Error al conectar:', err);
     if (els.gateError) {
@@ -509,8 +563,7 @@ function bootstrap() {
 
   if (els.backBtn) {
     els.backBtn.addEventListener('click', () => {
-      stopPlayback();
-      showScreen('grid');
+      window.location.hash = `#/grid/${encodeURIComponent(state.currentCategory)}`;
     });
   }
 
@@ -532,22 +585,18 @@ function bootstrap() {
     els.categoryScreen.querySelectorAll('[data-category]').forEach(btn => {
       btn.addEventListener('click', () => {
         const category = btn.dataset.category;
-        showScreen('grid');
-        els.gridEmpty.hidden = true;
-        els.channelGrid.innerHTML = '';
-        loadGrid(category).catch(err => {
-          console.error('Error al cargar ' + category + ':', err);
-          els.gridEmpty.hidden = false;
-        });
+        window.location.hash = `#/grid/${encodeURIComponent(category)}`;
       });
     });
   }
 
   if (els.backToCategoriesBtn) {
     els.backToCategoriesBtn.addEventListener('click', () => {
-      showScreen('categories');
+      window.location.hash = '';
     });
   }
+
+  window.addEventListener('hashchange', () => { renderRoute(); });
 
   // Iniciar la sesión directamente al cargar la página
   bootstrapSession();
