@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^cd /workspaces/Reproductor-TVuy && node --check app\\.js && node --check api/login\\.js$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
