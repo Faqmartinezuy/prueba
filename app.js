@@ -67,6 +67,14 @@ function setStatus(text, kind) {
   }
 }
 
+function describeSetupFailure(message, fallback = 'No se pudo cargar este canal.') {
+  const text = String(message || '').toLowerCase();
+  if (text.includes('9601-rep_sim') || text.includes('límite de reproducciones simultáneas') || text.includes('limite de reproducciones simultaneas') || text.includes('limit_simultaneo') || text.includes('limit simultaneo')) {
+    return 'Se alcanzó el máximo permitido de reproducciones simultáneas (2 pantallas).';
+  }
+  return fallback;
+}
+
 async function loginAndCreateSession() {
   const creds = getCredentials();
 
@@ -278,19 +286,108 @@ async function playChannel(ch) {
     await refreshStreamUrl();
   } catch (err) {
     console.error(err);
-    showPlayerError('No se pudo cargar este canal.');
+    const msg = err && err.message ? err.message : String(err || '');
+    showPlayerError(describeSetupFailure(msg, 'No se pudo cargar este canal.'));
   }
 }
 
 async function fetchStreamUrl(publicId) {
-  const url = `${CONFIG.SETUP_API}?token=${encodeURIComponent(state.sessionToken)}&public_id=${encodeURIComponent(publicId)}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('SETUP_API_' + res.status);
-  const data = await res.json();
-  const primary = data.url && data.url.suggested && data.url.suggested.url;
-  const backup = data.url_backup && data.url_backup.suggested && data.url_backup.suggested.url;
-  if (!primary && !backup) throw new Error('NO_STREAM_URL');
-  return primary || backup;
+  const lookupStreamUrl = (value) => {
+    if (!value) return null;
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed || !/^https?:\/\//i.test(trimmed)) return null;
+      return trimmed;
+    }
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const nested = lookupStreamUrl(item);
+        if (nested) return nested;
+      }
+      return null;
+    }
+
+    if (typeof value === 'object') {
+      const keys = Object.keys(value);
+      for (const key of keys) {
+        const lower = key.toLowerCase();
+        if (['url', 'href', 'src', 'stream', 'stream_url', 'playlist', 'm3u8', 'suggested'].includes(lower)) {
+          const nested = lookupStreamUrl(value[key]);
+          if (nested) return nested;
+        }
+        if (/stream|playlist|m3u8|url/.test(lower)) {
+          const nested = lookupStreamUrl(value[key]);
+          if (nested) return nested;
+        }
+      }
+      return null;
+    }
+
+    return null;
+  };
+
+  const requestSetup = async () => {
+    const url = `${CONFIG.SETUP_API}?token=${encodeURIComponent(state.sessionToken)}&public_id=${encodeURIComponent(publicId)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      let payload = null;
+      try {
+        payload = await res.json();
+      } catch (e) {}
+
+      const infoText = payload && (payload.message || payload.info?.info || payload.error || payload.detail || payload.mensaje || '');
+      const errorCode = payload && (payload.code_interno || payload.code || '');
+      const text = String(infoText || '').toLowerCase();
+      const isSimultaneousLimit = (res.status === 403 || res.status === 401) &&
+        (errorCode === '9601-REP_SIM' || text.includes('limite de reproducciones simultaneas') || text.includes('límite de reproducciones simultáneas'));
+
+      if (isSimultaneousLimit) {
+        console.warn('Límite de reproducciones simultáneas; reiniciando sesión y reintentando una vez...');
+        await loginAndCreateSession();
+        const retryUrl = `${CONFIG.SETUP_API}?token=${encodeURIComponent(state.sessionToken)}&public_id=${encodeURIComponent(publicId)}`;
+        const retryRes = await fetch(retryUrl);
+        if (!retryRes.ok) {
+          let retryPayload = null;
+          try { retryPayload = await retryRes.json(); } catch (e) {}
+          const retryCode = retryPayload && (retryPayload.code_interno || retryPayload.code || '');
+          const retryText = String((retryPayload && (retryPayload.message || retryPayload.info?.info || retryPayload.error || retryPayload.detail || retryPayload.mensaje || '')) || '').toLowerCase();
+          const isRetryLimit = retryCode === '9601-REP_SIM' || retryText.includes('limite de reproducciones simultaneas') || retryText.includes('límite de reproducciones simultáneas');
+          if (isRetryLimit) throw new Error('SETUP_API_403_LIMIT_SIMULTANEO');
+          throw new Error('SETUP_API_' + retryRes.status);
+        }
+        return retryRes.json();
+      }
+
+      throw new Error(`SETUP_API_${res.status}: ${infoText || 'Sin detalle'}`);
+    }
+
+    return res.json();
+  };
+
+  const data = await requestSetup();
+  const primaryCandidates = [
+    data && data.url,
+    data && data.url_backup,
+    data && data.stream,
+    data && data.stream_url,
+    data && data.playlist,
+    data && data.m3u8,
+    data && data.sources,
+    data && data.data,
+    data && data.result,
+  ];
+
+  for (const candidate of primaryCandidates) {
+    const streamUrl = lookupStreamUrl(candidate);
+    if (streamUrl) return streamUrl;
+  }
+
+  const nested = lookupStreamUrl(data);
+  if (nested) return nested;
+
+  throw new Error('NO_STREAM_URL');
 }
 
 async function refreshStreamUrl() {
