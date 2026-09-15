@@ -16,10 +16,9 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'method_not_allowed' });
   }
 
-  // Toma credenciales del body o usa las por defecto
   const bodyData = req.body || {};
-  const usuario = bodyData.usuario || 'william.s.martinez@hotmail.com';
-  const password = bodyData.password || 'wilymanya1979';
+  const usuario = bodyData.usuario || process.env.VERA_USER || '';
+  const password = bodyData.password || process.env.VERA_PASS || '';
 
   if (!usuario || !password) {
     return res.status(400).json({ error: 'missing_credentials' });
